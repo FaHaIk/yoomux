@@ -7,31 +7,51 @@ import (
 
 // Yoomux represents an HTTP multiplexer with middleware support.
 type Yoomux struct {
-	mux        *http.ServeMux
-	middleware []func(http.Handler) http.Handler
+	Mux             *http.ServeMux
+	middleware      []func(http.Handler) http.Handler
+	notFoundHandler http.HandlerFunc
+	routes          map[string]http.HandlerFunc
+}
+
+// NotFound registers a NotFound handler function that will be called when no route matches the request.
+// It applies the middleware chain to the handler function.
+// It returns the Yoomux instance for method chaining.
+func (yoomux *Yoomux) NotFound(handler http.HandlerFunc) *Yoomux {
+	yoomux.notFoundHandler = yoomux.applyMiddleware(handler)
+	return yoomux
+}
+
+// ServeHTTP handles the HTTP request by finding the appropriate handler for the request path.
+// If no route is matched, the notFoundHandler is called.
+func (yoomux *Yoomux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// handler, _ := yoomux.mux.Handler(r)
+	// if handler == nil {
+	// 	handler = yoomux.notFoundHandler
+	// }
+	// handler.ServeHTTP(w, r)
+	yoomux.Mux.ServeHTTP(w, r)
 }
 
 // Use adds a middleware function to the middleware chain of the Yoomux instance.
 // It returns a new Yoomux instance with the updated middleware chain.
 func (yoomux *Yoomux) Use(middleware func(http.Handler) http.Handler) *Yoomux {
 	return &Yoomux{
-		mux:        yoomux.mux,
+		Mux:        yoomux.Mux,
 		middleware: append(yoomux.middleware, middleware),
 	}
 }
 
 // UseAll adds a middleware function to the end of the middleware chain of the Yoomux instance.
-// It modifies the existing Yoomux instance and returns it.
-func (yoomux *Yoomux) UseAll(middleware func(http.Handler) http.Handler) *Yoomux {
+// It modifies the existing Yoomux instance.
+func (yoomux *Yoomux) UseAll(middleware func(http.Handler) http.Handler) {
 	yoomux.middleware = append(yoomux.middleware, middleware)
-	return yoomux
 }
 
 // Get registers a GET request handler function for the specified path.
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Get(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodGet+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodGet+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -39,7 +59,7 @@ func (yoomux *Yoomux) Get(path string, handler func(http.ResponseWriter, *http.R
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Head(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodHead+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodHead+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -47,7 +67,7 @@ func (yoomux *Yoomux) Head(path string, handler func(http.ResponseWriter, *http.
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Post(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodPost+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodPost+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -55,7 +75,7 @@ func (yoomux *Yoomux) Post(path string, handler func(http.ResponseWriter, *http.
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Put(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodPut+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodPut+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -63,7 +83,7 @@ func (yoomux *Yoomux) Put(path string, handler func(http.ResponseWriter, *http.R
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Patch(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodPatch+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodPatch+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -71,7 +91,7 @@ func (yoomux *Yoomux) Patch(path string, handler func(http.ResponseWriter, *http
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Delete(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodDelete+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodDelete+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -79,7 +99,7 @@ func (yoomux *Yoomux) Delete(path string, handler func(http.ResponseWriter, *htt
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Connect(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodConnect+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodConnect+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -87,7 +107,7 @@ func (yoomux *Yoomux) Connect(path string, handler func(http.ResponseWriter, *ht
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Options(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodOptions+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodOptions+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -95,7 +115,7 @@ func (yoomux *Yoomux) Options(path string, handler func(http.ResponseWriter, *ht
 // It applies the middleware chain to the handler function.
 // It returns the Yoomux instance for method chaining.
 func (yoomux *Yoomux) Trace(path string, handler func(http.ResponseWriter, *http.Request)) *Yoomux {
-	yoomux.mux.HandleFunc(http.MethodTrace+" "+path, yoomux.applyMiddleware(handler))
+	yoomux.Mux.HandleFunc(http.MethodTrace+" "+path, yoomux.applyMiddleware(handler))
 	return yoomux
 }
 
@@ -110,16 +130,10 @@ func (yoomux *Yoomux) applyMiddleware(handler func(http.ResponseWriter, *http.Re
 	}
 }
 
-// ServeHTTP implements the http.Handler interface.
-// It delegates the request handling to the underlying http.ServeMux.
-func (yoomux *Yoomux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	yoomux.mux.ServeHTTP(w, r)
-}
-
 // NewYoomux creates a new Yoomux instance with an empty middleware chain and a new http.ServeMux.
-func NewYoomux() *Yoomux {
+func New() *Yoomux {
 	return &Yoomux{
-		mux:        http.NewServeMux(),
+		Mux:        http.NewServeMux(),
 		middleware: make([]func(http.Handler) http.Handler, 0),
 	}
 }
@@ -128,9 +142,9 @@ func NewYoomux() *Yoomux {
 // It returns the subrouter Yoomux instance.
 func (yoomux *Yoomux) Subrouter(path string) *Yoomux {
 	submux := http.NewServeMux()
-	yoomux.mux.Handle(path+"/", http.StripPrefix(path, submux))
+	yoomux.Mux.Handle(path+"/", http.StripPrefix(path, submux))
 	return &Yoomux{
-		mux:        submux,
+		Mux:        submux,
 		middleware: yoomux.middleware,
 	}
 }
